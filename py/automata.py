@@ -5,7 +5,7 @@ class FiniteAutomaton:
             self.end_states = end_states if isinstance(end_states, tuple) else [ end_states ]
             self.trans_graph = trans_graph
         else:
-            raise Error('malformed automaton initialisation')
+            raise RuntimeError('malformed automaton initialisation')
 
     def process(self, inp_str):
         for char in inp_str:
