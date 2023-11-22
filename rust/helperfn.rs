@@ -24,7 +24,7 @@ where
     io::stdout().flush().expect("prompt output error");
     let mut buf: String = String::new();
     io::stdin().read_line(&mut buf).expect("input error");
-    match buf.trim().to_owned().parse::<T>() {
+    match buf.trim().parse::<T>() {
         Ok(i) => i,
         Err(_) => panic!("invalid input"),
     }
