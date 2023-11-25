@@ -3,11 +3,11 @@ use std::path::Path;
 
 /// Take an input as `String` and return a generic type `T`
 /// after parsing that `String`.
-/// 
+///
 /// In case of an input error, or if the input cannot be parsed
 /// into type `T`, the function will panic. However, it can be
 /// customized to return an `Option<T>` or `Result<T>` instead.
-/// 
+///
 /// # Example
 /// ```
 /// // Using type annotaion in variable declaration
@@ -32,7 +32,7 @@ where
 
 /// Return the file basename of the current file,
 /// given the output of the `file!()` macro.
-/// 
+///
 /// # Example
 /// ```
 /// let filename = get_filename(file!());
