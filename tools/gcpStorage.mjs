@@ -15,9 +15,15 @@ const storage = new Storage({ keyFilename });
 async function listFiles(bucketName, prefix = "") {
   const [files] = await storage.bucket(bucketName).getFiles({ prefix });
   console.log("Files:");
+  const table = [];
   files.forEach((file) => {
-    console.log(file.name);
+    table.push({
+      Name: file.name,
+      "Size (Bytes)": file.metadata.size,
+      "Content Type": file.metadata.contentType,
+    });
   });
+  console.table(table);
 }
 
 // Function to remove a file or folder from a bucket
