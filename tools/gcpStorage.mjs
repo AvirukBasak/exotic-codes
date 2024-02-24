@@ -11,9 +11,15 @@ const keyFilename = path.join(
 );
 const storage = new Storage({ keyFilename });
 
-// Function to list files in a bucket
-async function listFiles(bucketName, prefix = "") {
-  const [files] = await storage.bucket(bucketName).getFiles({ prefix });
+/**
+ * @param {string} bucketName
+ * @param {string} cloudPathPrefix
+ */
+async function listFiles(bucketName, cloudPathPrefix = "") {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  const [files] = await storage.bucket(bucketName).getFiles({ prefix: cloudPathPrefix });
   console.log("Files:");
   const table = [];
   files.forEach((file) => {
@@ -26,19 +32,37 @@ async function listFiles(bucketName, prefix = "") {
   console.table(table);
 }
 
-// Function to remove a file or folder from a bucket
-async function removeFileOrFolder(bucketName, filename) {
-  const file = storage.bucket(bucketName).file(filename);
+/**
+ * @param {string} bucketName
+ * @param {string} cloudPath
+ */
+async function removeFile(bucketName, cloudPath) {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  if (!cloudPath) {
+    throw new Error("Cloud path is required.");
+  }
+  const file = storage.bucket(bucketName).file(cloudPath);
   await file.delete();
-  console.log(`${filename} deleted successfully.`);
+  console.log(`${cloudPath} deleted successfully.`);
 }
 
-// Function to remove files or folders by prefix
-async function removeFilesByPrefix(bucketName, prefix) {
-  const [files] = await storage.bucket(bucketName).getFiles({ prefix });
+/**
+ * @param {string} bucketName
+ * @param {string} cloudPathPrefix
+ */
+async function removeFilesByPrefix(bucketName, cloudPathPrefix) {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  if (!cloudPathPrefix) {
+    throw new Error("Cloud path prefix is required.");
+  }
+  const [files] = await storage.bucket(bucketName).getFiles({ prefix: cloudPathPrefix });
   const delPromises = [];
   if (files.length === 0) {
-    console.log(`No files found with prefix '${prefix}'.`);
+    console.log(`No files found with prefix '${cloudPathPrefix}'.`);
   } else {
     for (const file of files) {
       delPromises.push(
@@ -56,48 +80,114 @@ async function removeFilesByPrefix(bucketName, prefix) {
   await Promise.allSettled(delPromises);
 }
 
-// Function to copy a local file to a bucket
-async function copyToLocal(bucketName, srcFilename, destFilename) {
-  await storage.bucket(bucketName).upload(srcFilename, {
-    destination: destFilename,
+/**
+ * 
+ * @param {string} bucketName
+ * @param {string} srcLocalPath
+ * @param {string} destCloudPath
+ */
+async function uploadToBucket(bucketName, srcLocalPath, destCloudPath) {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  if (!srcLocalPath) {
+    throw new Error("Source local path is required.");
+  }
+  if (!destCloudPath) {
+    throw new Error("Destination cloud path is required.");
+  }
+  await storage.bucket(bucketName).upload(srcLocalPath, {
+    destination: destCloudPath,
   });
-  console.log(`${srcFilename} uploaded to ${destFilename}.`);
+  console.log(`${srcLocalPath} uploaded to ${destCloudPath}.`);
+}
+
+/**
+ * 
+ * @param {string} bucketName
+ * @param {string} srcLocalPath
+ * @param {string} destCloudPath
+ */
+async function downloadFromBucket(bucketName, srcLocalPath, destCloudPath) {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  if (!srcLocalPath) {
+    throw new Error("Source cloud path is required.");
+  }
+  if (!destCloudPath) {
+    throw new Error("Destination local path is required.");
+  }
+  const options = {
+    destination: destCloudPath,
+  };
+  await storage.bucket(bucketName).file(srcLocalPath).download(options);
+  console.log(`${srcLocalPath} saved as ${destCloudPath}.`);
+}
+
+/**
+ * @param {string} execFile
+ */
+function showHelpText(execFile) {
+
+  const cwdAbsolute = process.cwd();
+  const execFileAbsolute = path.resolve(cwdAbsolute, execFile);
+  const execFileRelative = path.relative(cwdAbsolute, execFileAbsolute);
+
+  console.error(`\nUsage: node ${execFileRelative} <bucketName> <command> [args]`);
+  console.error("Commands:");
+  console.error("  ls       [prefix]        List files in the bucket with the given prefix");
+  console.error("  rm       [fullName]      Remove the file or folder with the given name");
+  console.error("  rmp      [prefix]        Remove files or folders with the given prefix");
+  console.error("  upload   [local] [cloud] Copy a local file to the bucket");
+  console.error("  download [cloud] [local] Copy a file from the bucket to the local file system");
 }
 
 // Parse command line arguments
-const [, , bucketName, command, ...args] = process.argv;
+const [, execFile, bucketName, command, ...args] = process.argv;
+
+if (!bucketName) {
+  console.error("Bucket name is required");
+  showHelpText(execFile);
+  process.exit(1);
+}
 
 // Execute the specified command
 async function executeCommand() {
   switch (command) {
-    case "ls":
-      await listFiles(bucketName, ...args);
+    case "ls": {
+      const [ prefix ] = args;
+      await listFiles(bucketName, prefix);
       break;
-    case "rm":
-      await removeFileOrFolder(bucketName, ...args);
+    }
+    case "rm": {
+      const [ path ] = args;
+      await removeFile(bucketName, path);
       break;
-    case "rmp":
-      await removeFilesByPrefix(bucketName, ...args);
+    }
+    case "rmp": {
+      const [ prefix ] = args;
+      await removeFilesByPrefix(bucketName, prefix);
       break;
-    case "cp":
-      await copyToLocal(bucketName, ...args);
+    }
+    case "upload": {
+      const [ srcLocalPath, destCloudPath ] = args;
+      await uploadToBucket(bucketName, srcLocalPath, destCloudPath);
       break;
+    }
+    case "download": {
+      const [ srcCloudPath, destLocalPath ] = args;
+      await downloadFromBucket(bucketName, srcCloudPath, destLocalPath);
+      break;
+    }
     default:
       console.error("Invalid command");
-      console.error("Usage: node gfs.js <bucketName> <command> [args]");
-      console.error("Commands:");
-      console.error(
-        "  ls  [prefix]        List files in the bucket with the given prefix"
-      );
-      console.error(
-        "  rm  [fullName]      Remove the file or folder with the given name"
-      );
-      console.error(
-        "  rmp [prefix]        Remove files or folders with the given prefix"
-      );
-      console.error("  cp  [local] [cloud] Copy a local file to the bucket");
+      showHelpText(execFile);
       process.exit(1);
   }
 }
 
-await executeCommand();
+executeCommand().catch((err) => {
+  console.error(err.toString());
+  process.exit(1);
+});
