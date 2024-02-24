@@ -15,6 +15,18 @@ const storage = new Storage({ keyFilename });
  * @param {string} bucketName
  * @param {string} cloudPathPrefix
  */
+async function countFiles(bucketName, cloudPathPrefix = "") {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  const [files] = await storage.bucket(bucketName).getFiles({ prefix: cloudPathPrefix });
+  console.log(`Number of files with prefix '${cloudPathPrefix}':`, files.length);
+}
+
+/**
+ * @param {string} bucketName
+ * @param {string} cloudPathPrefix
+ */
 async function listFiles(bucketName, cloudPathPrefix = "") {
   if (!bucketName) {
     throw new Error("Bucket name is required.");
@@ -59,25 +71,8 @@ async function removeFilesByPrefix(bucketName, cloudPathPrefix) {
   if (!cloudPathPrefix) {
     throw new Error("Cloud path prefix is required.");
   }
-  const [files] = await storage.bucket(bucketName).getFiles({ prefix: cloudPathPrefix });
-  const delPromises = [];
-  if (files.length === 0) {
-    console.log(`No files found with prefix '${cloudPathPrefix}'.`);
-  } else {
-    for (const file of files) {
-      delPromises.push(
-        file
-          .delete()
-          .then(() => {
-            console.log(`${file.name} deleted successfully.`);
-          })
-          .catch((err) => {
-            console.error(`Error deleting ${file.name}:`, err.toString());
-          })
-      );
-    }
-  }
-  await Promise.allSettled(delPromises);
+  await storage.bucket(bucketName).deleteFiles({ prefix: cloudPathPrefix });
+  console.log(`Files with prefix '${cloudPathPrefix}' deleted successfully.`);
 }
 
 /**
@@ -137,6 +132,7 @@ function showHelpText(execFile) {
   console.error(`\nUsage: node ${execFileRelative} <bucketName> <command> [args]`);
   console.error("Commands:");
   console.error("  ls       [prefix]        List files in the bucket with the given prefix");
+  console.error("  count    [prefix]        Count files in the bucket with the given prefix");
   console.error("  rm       [fullName]      Remove the file or folder with the given name");
   console.error("  rmp      [prefix]        Remove files or folders with the given prefix");
   console.error("  upload   [local] [cloud] Copy a local file to the bucket");
@@ -158,6 +154,11 @@ async function executeCommand() {
     case "ls": {
       const [ prefix ] = args;
       await listFiles(bucketName, prefix);
+      break;
+    }
+    case "count": {
+      const [ prefix ] = args;
+      await countFiles(bucketName, prefix);
       break;
     }
     case "rm": {
