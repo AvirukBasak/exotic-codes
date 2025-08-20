@@ -4,12 +4,39 @@ import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Load the credentials from the JSON key file
-const keyFilename = path.join(
-  __dirname,
-  "creds.json"
-);
-const storage = new Storage({ keyFilename });
+// Check if running against emulator
+const isEmulator = process.env.STORAGE_EMULATOR_HOST;
+
+// example emulator config
+// export STORAGE_EMULATOR_HOST=http://localhost:9003
+// export GCLOUD_PROJECT=mess-booking-app-serverless
+
+let storage;
+
+if (isEmulator) {
+  if (typeof isEmulator === "string" && !isEmulator.startsWith('http')) {
+    console.error('Variable STORAGE_EMULATOR_HOST should contain HTTP(s) schema');
+    process.exit(1);
+  }
+  if (!process.env.GCLOUD_PROJECT) {
+    console.error('Missing GCLOUD_PROJECT environment variable. Required for emulator.');
+    process.exit(1);
+  }
+  console.log(`🔧 Using Storage Emulator at: ${process.env.STORAGE_EMULATOR_HOST}`);
+  console.log(`   Project ID: ${process.env.GCLOUD_PROJECT}\n`);
+
+  // For emulator, create storage client without credentials
+  storage = new Storage({
+    apiEndpoint: process.env.STORAGE_EMULATOR_HOST,
+    projectId: process.env.GCLOUD_PROJECT,
+  });
+} else {
+  console.log('🌐 Using Production Google Cloud Storage');
+  
+  // Load the credentials from the JSON key file for production
+  const keyFilename = path.join(__dirname, "creds.json");
+  storage = new Storage({ keyFilename });
+}
 
 /**
  * @param {string} bucketName
@@ -303,6 +330,6 @@ async function executeCommand() {
 }
 
 executeCommand().catch((err) => {
-  console.error(err.toString());
+  console.error(err);
   process.exit(1);
 });
