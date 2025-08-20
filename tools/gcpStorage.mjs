@@ -62,6 +62,108 @@ async function removeFile(bucketName, cloudPath) {
 
 /**
  * @param {string} bucketName
+ * @param {string} oldPath
+ * @param {string} newPath
+ */
+async function moveFile(bucketName, oldPath, newPath) {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  if (!oldPath) {
+    throw new Error("Old path is required.");
+  }
+  if (!newPath) {
+    throw new Error("New path is required.");
+  }
+  const bucket = storage.bucket(bucketName);
+  const sourceFile = bucket.file(oldPath);
+  const destinationFile = bucket.file(newPath);
+  const [exists] = await sourceFile.exists();
+  if (!exists) {
+    throw new Error(`Source file '${oldPath}' does not exist.`);
+  }
+  await sourceFile.copy(destinationFile);
+  await sourceFile.delete();
+  console.log(`Moved file from ${oldPath} to ${newPath} successfully.`);
+}
+
+/**
+ * @param {string} bucketName
+ * @param {string} oldPrefix
+ * @param {string} newPrefix
+ */
+async function moveByPrefix(bucketName, oldPrefix, newPrefix) {
+  if (!bucketName) {
+    throw new Error("Bucket name is required.");
+  }
+  if (!oldPrefix) {
+    throw new Error("Old prefix is required.");
+  }
+  if (!newPrefix) {
+    throw new Error("New prefix is required.");
+  }
+  
+  const bucket = storage.bucket(bucketName);
+  
+  // Get all files with the old prefix
+  const [files] = await bucket.getFiles({ prefix: oldPrefix });
+  
+  if (files.length === 0) {
+    console.log(`No files found with prefix '${oldPrefix}'.`);
+    return;
+  }
+  
+  console.log(`Found ${files.length} files to move...`);
+  
+  // Move each file
+  const movePromises = files.map(async (file) => {
+    const oldPath = file.name;
+    // Replace the old prefix with the new prefix
+    const newPath = oldPath.replace(new RegExp(`^${escapeRegExp(oldPrefix)}`), newPrefix);
+    
+    try {
+      const destinationFile = bucket.file(newPath);
+      await file.copy(destinationFile);
+      await file.delete();
+      console.log(`Moved: ${oldPath} → ${newPath}`);
+    } catch (error) {
+      console.error(`Failed to move ${oldPath}: ${error.message}`);
+      throw error;
+    }
+  });
+  
+  // Wait for all moves to complete
+  await Promise.all(movePromises);
+  
+  console.log(`Successfully moved ${files.length} files from prefix '${oldPrefix}' to '${newPrefix}'.`);
+}
+
+/**
+ * Helper function to escape special regex characters in a string
+ * @param {string} string
+ * @returns {string}
+ */
+function escapeRegExp(string) {
+  // Replace each special regex character with its escaped version
+  return string
+    .replace(/\\/g, '\\\\')  // Backslash must be first
+    .replace(/\./g, '\\.')   // Dot
+    .replace(/\*/g, '\\*')   // Asterisk
+    .replace(/\+/g, '\\+')   // Plus
+    .replace(/\?/g, '\\?')   // Question mark
+    .replace(/\^/g, '\\^')   // Caret
+    .replace(/\$/g, '\\$')   // Dollar sign
+    .replace(/\{/g, '\\{')   // Opening brace
+    .replace(/\}/g, '\\}')   // Closing brace
+    .replace(/\(/g, '\\(')   // Opening parenthesis
+    .replace(/\)/g, '\\)')   // Closing parenthesis
+    .replace(/\|/g, '\\|')   // Pipe
+    .replace(/\[/g, '\\[')   // Opening bracket
+    .replace(/\]/g, '\\]');  // Closing bracket
+}
+
+/**
+ * @param {string} bucketName
  * @param {string} cloudPathPrefix
  */
 async function removeFilesByPrefix(bucketName, cloudPathPrefix) {
@@ -135,6 +237,8 @@ function showHelpText(execFile) {
   console.error("  count    [prefix]        Count files in the bucket with the given prefix");
   console.error("  rm       [fullName]      Remove the file or folder with the given name");
   console.error("  rmp      [prefix]        Remove files or folders with the given prefix");
+  console.error("  mv       [old] [new]     Move the file from old to new");
+  console.error("  mvp      [old] [new]     Move all files or folders with prefix from old to new");
   console.error("  upload   [local] [cloud] Copy a local file to the bucket");
   console.error("  download [cloud] [local] Copy a file from the bucket to the local file system");
 }
@@ -164,6 +268,16 @@ async function executeCommand() {
     case "rm": {
       const [ path ] = args;
       await removeFile(bucketName, path);
+      break;
+    }
+    case "mv": {
+      const [ oldPath, newPath ] = args;
+      await moveFile(bucketName, oldPath, newPath);
+      break;
+    }
+    case "mvp": {
+      const [ oldPrefix, newPrefix ] = args;
+      await moveByPrefix(bucketName, oldPrefix, newPrefix);
       break;
     }
     case "rmp": {
