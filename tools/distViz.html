@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Distribution Analyzer</title>
+<style>
+body{
+font-family:Inter,Segoe UI,Arial;
+margin:0;
+background:#f5f7fb;
+color:#222;
+}
+
+.container{
+width:1500px;
+margin:20px auto;
+background:white;
+padding:20px;
+border-radius:14px;
+box-shadow:0 10px 30px rgba(0,0,0,0.08);
+}
+
+#canvas{
+border:2px solid #d0d7e2;
+background:#ffffff;
+cursor:crosshair;
+border-radius:10px;
+}
+
+button{
+padding:12px 20px;
+margin-right:10px;
+font-size:16px;
+font-weight:600;
+border-radius:8px;
+border:none;
+background:#2563eb;
+color:white;
+cursor:pointer;
+}
+
+button:hover{ background:#1d4ed8; }
+
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:15px;
+}
+
+.legend{
+display:grid;
+grid-template-columns:repeat(2, 1fr);
+gap:10px;
+margin-top:20px;
+font-size:18px;
+}
+
+.legendItem{
+display:flex;
+align-items:center;
+justify-content:space-between;
+background:#f1f5f9;
+padding:10px 14px;
+border-radius:8px;
+}
+
+.leftLegend{
+display:flex;
+align-items:center;
+gap:10px;
+font-weight:600;
+}
+
+.swatch{
+width:26px;
+height:10px;
+border-radius:3px;
+}
+
+.value{
+font-weight:700;
+font-family:monospace;
+}
+
+h2{ margin:0; font-size:30px; }
+
+p{
+margin:6px 0 14px 0;
+font-size:18px;
+color:#475569;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="topbar">
+<div>
+<h2>Distribution Analyzer</h2>
+<p>Draw any distribution. Statistics shown as markers.</p>
+</div>
+
+<div>
+<button onclick="clearCanvas()">Clear</button>
+<button onclick="analyze()">Compute</button>
+</div>
+</div>
+
+<canvas id="canvas" width="1450" height="520"></canvas>
+
+<div class="legend">
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#9ca3af"></div>
+Mean (fine dotted)
+</div>
+<div class="value" id="mean">–</div>
+</div>
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#16a34a"></div>
+Median
+</div>
+<div class="value" id="median">–</div>
+</div>
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#ef4444"></div>
+Mode
+</div>
+<div class="value" id="mode">–</div>
+</div>
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#22c55e"></div>
+Q1 / Q3 (IQR range)
+</div>
+<div class="value" id="iqr">–</div>
+</div>
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#c084fc"></div>
+MAD (dotted)
+</div>
+<div class="value" id="mad">–</div>
+</div>
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#16a34a"></div>
+Q1
+</div>
+<div class="value" id="q1">–</div>
+</div>
+
+<div class="legendItem">
+<div class="leftLegend">
+<div class="swatch" style="background:#16a34a"></div>
+Q3
+</div>
+<div class="value" id="q3">–</div>
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let drawing=false;
+let values = new Array(canvas.width).fill(0);
+let stats=null;
+
+canvas.onmousedown=e=>{drawing=true;draw(e);} 
+canvas.onmouseup=()=> drawing=false;
+canvas.onmouseleave=()=> drawing=false;
+canvas.onmousemove=e=>{if(drawing) draw(e);} 
+
+function draw(e){
+const rect = canvas.getBoundingClientRect();
+const x = Math.floor(e.clientX - rect.left);
+const y = Math.floor(e.clientY - rect.top);
+values[x]=Math.max(0,canvas.height-y);
+redraw();
+}
+
+function redraw(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+// histogram bars
+for(let x=0;x<values.length;x++){
+let h=values[x];
+
+ctx.strokeStyle="#d1d5db";
+ctx.lineWidth=2;
+ctx.beginPath();
+ctx.moveTo(x,canvas.height);
+ctx.lineTo(x,canvas.height-h);
+ctx.stroke();
+
+// black tip
+ctx.strokeStyle="#111";
+ctx.lineWidth=3;
+ctx.beginPath();
+ctx.moveTo(x,canvas.height-h);
+ctx.lineTo(x,canvas.height-h-1);
+ctx.stroke();
+}
+
+if(stats) drawStats();
+}
+
+function verticalLine(x,color,width=4,dashPattern=null){
+ctx.strokeStyle=color;
+ctx.lineWidth=width;
+
+if(dashPattern) ctx.setLineDash(dashPattern);
+else ctx.setLineDash([]);
+
+ctx.beginPath();
+ctx.moveTo(x,0);
+ctx.lineTo(x,canvas.height);
+ctx.stroke();
+
+ctx.setLineDash([]);
+}
+
+function drawStats(){
+
+// IQR range
+ctx.fillStyle="#86efac";
+ctx.globalAlpha=0.45;
+ctx.fillRect(stats.q1,0,stats.q3-stats.q1,canvas.height);
+ctx.globalAlpha=1;
+
+// Q1 Q3 thin dotted
+verticalLine(stats.q1,"#16a34a",2,[6,6]);
+verticalLine(stats.q3,"#16a34a",2,[6,6]);
+
+// median same color solid
+verticalLine(stats.q2,"#16a34a",5);
+
+// mean fine dotted gray
+verticalLine(stats.mean,"#6b7280",4,[2,10]);
+
+// lighter red mode
+verticalLine(stats.mode,"#ef4444",5);
+
+// MAD dotted light purple
+verticalLine(stats.q2-stats.mad,"#c084fc",3,[8,8]);
+verticalLine(stats.q2+stats.mad,"#c084fc",3,[8,8]);
+}
+
+function clearCanvas(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+values = new Array(canvas.width).fill(0);
+stats=null;
+let ids=["mean","median","mode","q1","q3","iqr","mad"];
+ids.forEach(id=>{ document.getElementById(id).innerHTML="–"; });
+}
+
+function weightedQuantile(target,totalArea){
+let cumulative=0;
+for(let x=0;x<values.length;x++){
+cumulative+=values[x];
+if(cumulative/totalArea>=target) return x;
+}
+return 0;
+}
+
+function computeMAD(median,totalArea){
+let devs=[];
+let total=0;
+for(let x=0;x<values.length;x++){
+let d=Math.abs(x-median);
+devs.push({d:d,w:values[x]});
+total+=values[x];
+}
+
+devs.sort((a,b)=>a.d-b.d);
+
+let cumulative=0;
+for(let i=0;i<devs.length;i++){
+cumulative+=devs[i].w;
+if(cumulative/total>=0.5) return devs[i].d;
+}
+return 0;
+}
+
+function analyze(){
+let totalArea=0;
+let weightedSum=0;
+
+for(let x=0;x<values.length;x++){
+totalArea+=values[x];
+weightedSum+=x*values[x];
+}
+
+if(totalArea===0) return;
+
+const mean=weightedSum/totalArea;
+
+let maxY=0;
+let modeX=0;
+for(let x=0;x<values.length;x++){
+if(values[x]>maxY){ maxY=values[x]; modeX=x; }
+}
+
+const q1 = weightedQuantile(0.25,totalArea);
+const q2 = weightedQuantile(0.50,totalArea);
+const q3 = weightedQuantile(0.75,totalArea);
+
+const iqr=q3-q1;
+const mad=computeMAD(q2,totalArea);
+
+stats={mean,mode:modeX,q1,q2,q3,iqr,mad};
+
+// legend values
+
+document.getElementById('mean').innerHTML=mean.toFixed(2);
+document.getElementById('median').innerHTML=q2;
+document.getElementById('mode').innerHTML=modeX;
+document.getElementById('q1').innerHTML=q1;
+document.getElementById('q3').innerHTML=q3;
+document.getElementById('iqr').innerHTML=iqr;
+document.getElementById('mad').innerHTML=mad.toFixed(2);
+
+redraw();
+}
+
+</script>
+
+</body>
+</html>
