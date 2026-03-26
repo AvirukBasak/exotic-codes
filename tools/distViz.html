@@ -4,343 +4,422 @@
 <meta charset="UTF-8">
 <title>Distribution Analyzer</title>
 <style>
-body{
-font-family:Inter,Segoe UI,Arial;
-margin:0;
-background:#f5f7fb;
-color:#222;
+body {
+  font-family: Inter, Segoe UI, Arial;
+  margin: 0;
+  background: #f5f7fb;
+  color: #222;
 }
 
-.container{
-width:1500px;
-margin:20px auto;
-background:white;
-padding:20px;
-border-radius:14px;
-box-shadow:0 10px 30px rgba(0,0,0,0.08);
+.container {
+  width: 1500px;
+  margin: 20px auto;
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
 
-#canvas{
-border:2px solid #d0d7e2;
-background:#ffffff;
-cursor:crosshair;
-border-radius:10px;
+#canvas {
+  border: 2px solid #d0d7e2;
+  background: #ffffff;
+  cursor: crosshair;
+  border-radius: 10px;
+  display: block;
 }
 
-button{
-padding:12px 20px;
-margin-right:10px;
-font-size:16px;
-font-weight:600;
-border-radius:8px;
-border:none;
-background:#2563eb;
-color:white;
-cursor:pointer;
+button {
+  padding: 12px 20px;
+  margin-right: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
 }
 
-button:hover{ background:#1d4ed8; }
+button:hover { background: #1d4ed8; }
 
-.topbar{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:15px;
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
 }
 
-.legend{
-display:grid;
-grid-template-columns:repeat(2, 1fr);
-gap:10px;
-margin-top:20px;
-font-size:18px;
+.legend {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 15px;
 }
 
-.legendItem{
-display:flex;
-align-items:center;
-justify-content:space-between;
-background:#f1f5f9;
-padding:10px 14px;
-border-radius:8px;
+.legendItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  gap: 10px;
 }
 
-.leftLegend{
-display:flex;
-align-items:center;
-gap:10px;
-font-weight:600;
+.leftLegend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: #374151;
 }
 
-.swatch{
-width:26px;
-height:10px;
-border-radius:3px;
+/* Line style previews */
+.swatchWrap {
+  width: 34px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.value{
-font-weight:700;
-font-family:monospace;
+.swatchWrap svg { width: 34px; height: 18px; }
+
+.value {
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 14px;
+  color: #1e293b;
+  white-space: nowrap;
 }
 
-h2{ margin:0; font-size:30px; }
+h2 { margin: 0; font-size: 28px; }
 
-p{
-margin:6px 0 14px 0;
-font-size:18px;
-color:#475569;
+p {
+  margin: 5px 0 0 0;
+  font-size: 16px;
+  color: #64748b;
 }
-
 </style>
 </head>
 
 <body>
-
 <div class="container">
 
-<div class="topbar">
-<div>
-<h2>Distribution Analyzer</h2>
-<p>Draw any distribution. Statistics shown as markers.</p>
-</div>
+  <div class="topbar">
+    <div>
+      <h2>Distribution Analyzer</h2>
+      <p>Draw any distribution. Click <b>Compute</b> to show statistics.</p>
+    </div>
+    <div>
+      <button onclick="clearCanvas()">Clear</button>
+      <button onclick="analyze()">Compute</button>
+    </div>
+  </div>
 
-<div>
-<button onclick="clearCanvas()">Clear</button>
-<button onclick="analyze()">Compute</button>
-</div>
-</div>
+  <canvas id="canvas" width="1450" height="500"></canvas>
 
-<canvas id="canvas" width="1450" height="520"></canvas>
+  <div class="legend">
 
-<div class="legend">
+    <!-- Mean -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#2563eb" stroke-width="3" stroke-dasharray="6,4"/></svg>
+        </div>
+        Mean
+      </div>
+      <div class="value" id="mean">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#9ca3af"></div>
-Mean (fine dotted)
-</div>
-<div class="value" id="mean">–</div>
-</div>
+    <!-- Std Dev -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg>
+            <rect x="4" y="3" width="26" height="12" fill="#bfdbfe" opacity="0.6" rx="2"/>
+            <line x1="4" y1="2" x2="4" y2="16" stroke="#3b82f6" stroke-width="2" stroke-dasharray="4,3"/>
+            <line x1="30" y1="2" x2="30" y2="16" stroke="#3b82f6" stroke-width="2" stroke-dasharray="4,3"/>
+          </svg>
+        </div>
+        ±1 Std Dev
+      </div>
+      <div class="value" id="stddev">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#16a34a"></div>
-Median
-</div>
-<div class="value" id="median">–</div>
-</div>
+    <!-- Median -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#16a34a" stroke-width="3.5"/></svg>
+        </div>
+        Median
+      </div>
+      <div class="value" id="median">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#ef4444"></div>
-Mode
-</div>
-<div class="value" id="mode">–</div>
-</div>
+    <!-- Mode -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#dc2626" stroke-width="3.5" stroke-dasharray="10,3"/></svg>
+        </div>
+        Mode
+      </div>
+      <div class="value" id="mode">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#22c55e"></div>
-Q1 / Q3 (IQR range)
-</div>
-<div class="value" id="iqr">–</div>
-</div>
+    <!-- IQR -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg>
+            <rect x="4" y="3" width="26" height="12" fill="#fde68a" opacity="0.7" rx="2"/>
+            <line x1="4" y1="2" x2="4" y2="16" stroke="#d97706" stroke-width="2" stroke-dasharray="4,3"/>
+            <line x1="30" y1="2" x2="30" y2="16" stroke="#d97706" stroke-width="2" stroke-dasharray="4,3"/>
+          </svg>
+        </div>
+        IQR (Q1–Q3)
+      </div>
+      <div class="value" id="iqr">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#c084fc"></div>
-MAD (dotted)
-</div>
-<div class="value" id="mad">–</div>
-</div>
+    <!-- Q1 -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#d97706" stroke-width="2.5" stroke-dasharray="4,4"/></svg>
+        </div>
+        Q1
+      </div>
+      <div class="value" id="q1">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#16a34a"></div>
-Q1
-</div>
-<div class="value" id="q1">–</div>
-</div>
+    <!-- Q3 -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#d97706" stroke-width="2.5" stroke-dasharray="4,4"/></svg>
+        </div>
+        Q3
+      </div>
+      <div class="value" id="q3">–</div>
+    </div>
 
-<div class="legendItem">
-<div class="leftLegend">
-<div class="swatch" style="background:#16a34a"></div>
-Q3
-</div>
-<div class="value" id="q3">–</div>
-</div>
+    <!-- MAD -->
+    <div class="legendItem">
+      <div class="leftLegend">
+        <div class="swatchWrap">
+          <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#9333ea" stroke-width="2.5" stroke-dasharray="2,5"/></svg>
+        </div>
+        MAD
+      </div>
+      <div class="value" id="mad">–</div>
+    </div>
 
-</div>
-
+  </div>
 </div>
 
 <script>
-
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-let drawing=false;
+let drawing = false;
 let values = new Array(canvas.width).fill(0);
-let stats=null;
+let stats = null;
 
-canvas.onmousedown=e=>{drawing=true;draw(e);} 
-canvas.onmouseup=()=> drawing=false;
-canvas.onmouseleave=()=> drawing=false;
-canvas.onmousemove=e=>{if(drawing) draw(e);} 
+canvas.onmousedown = e => { drawing = true; draw(e); };
+canvas.onmouseup = () => drawing = false;
+canvas.onmouseleave = () => drawing = false;
+canvas.onmousemove = e => { if (drawing) draw(e); };
 
-function draw(e){
-const rect = canvas.getBoundingClientRect();
-const x = Math.floor(e.clientX - rect.left);
-const y = Math.floor(e.clientY - rect.top);
-values[x]=Math.max(0,canvas.height-y);
-redraw();
+function draw(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor(e.clientX - rect.left);
+  const y = Math.floor(e.clientY - rect.top);
+  values[x] = Math.max(0, canvas.height - y);
+  redraw();
 }
 
-function redraw(){
-ctx.clearRect(0,0,canvas.width,canvas.height);
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-// histogram bars
-for(let x=0;x<values.length;x++){
-let h=values[x];
+  // Draw histogram bars
+  for (let x = 0; x < values.length; x++) {
+    const h = values[x];
+    if (h === 0) continue;
 
-ctx.strokeStyle="#d1d5db";
-ctx.lineWidth=2;
-ctx.beginPath();
-ctx.moveTo(x,canvas.height);
-ctx.lineTo(x,canvas.height-h);
-ctx.stroke();
+    // Bar fill
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, canvas.height);
+    ctx.lineTo(x, canvas.height - h);
+    ctx.stroke();
 
-// black tip
-ctx.strokeStyle="#111";
-ctx.lineWidth=3;
-ctx.beginPath();
-ctx.moveTo(x,canvas.height-h);
-ctx.lineTo(x,canvas.height-h-1);
-ctx.stroke();
+    // Sharp tip
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, canvas.height - h);
+    ctx.lineTo(x, canvas.height - h - 1);
+    ctx.stroke();
+  }
+
+  if (stats) drawStats();
 }
 
-if(stats) drawStats();
+function vLine(x, color, width, dash = []) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, canvas.height);
+  ctx.stroke();
+  ctx.restore();
 }
 
-function verticalLine(x,color,width=4,dashPattern=null){
-ctx.strokeStyle=color;
-ctx.lineWidth=width;
-
-if(dashPattern) ctx.setLineDash(dashPattern);
-else ctx.setLineDash([]);
-
-ctx.beginPath();
-ctx.moveTo(x,0);
-ctx.lineTo(x,canvas.height);
-ctx.stroke();
-
-ctx.setLineDash([]);
+function shadedRegion(x1, x2, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.fillRect(x1, 0, x2 - x1, canvas.height);
+  ctx.restore();
 }
 
-function drawStats(){
+function drawStats() {
+  // --- IQR band: warm amber ---
+  shadedRegion(stats.q1, stats.q3, "#fde68a", 0.35);
+  vLine(stats.q1, "#d97706", 2, [6, 5]);
+  vLine(stats.q3, "#d97706", 2, [6, 5]);
 
-// IQR range
-ctx.fillStyle="#86efac";
-ctx.globalAlpha=0.45;
-ctx.fillRect(stats.q1,0,stats.q3-stats.q1,canvas.height);
-ctx.globalAlpha=1;
+  // --- ±1 SD band: cool blue ---
+  shadedRegion(stats.mean - stats.sd, stats.mean + stats.sd, "#bfdbfe", 0.30);
+  vLine(stats.mean - stats.sd, "#3b82f6", 2, [5, 4]);
+  vLine(stats.mean + stats.sd, "#3b82f6", 2, [5, 4]);
 
-// Q1 Q3 thin dotted
-verticalLine(stats.q1,"#16a34a",2,[6,6]);
-verticalLine(stats.q3,"#16a34a",2,[6,6]);
+  // --- MAD lines: purple dotted ---
+  vLine(stats.q2 - stats.mad, "#9333ea", 2, [3, 6]);
+  vLine(stats.q2 + stats.mad, "#9333ea", 2, [3, 6]);
 
-// median same color solid
-verticalLine(stats.q2,"#16a34a",5);
+  // --- Median: solid green (bold) ---
+  vLine(stats.q2, "#16a34a", 4);
 
-// mean fine dotted gray
-verticalLine(stats.mean,"#6b7280",4,[2,10]);
+  // --- Mean: dashed blue (bold) ---
+  vLine(stats.mean, "#2563eb", 3.5, [8, 5]);
 
-// lighter red mode
-verticalLine(stats.mode,"#ef4444",5);
+  // --- Mode: dashed red (bold) ---
+  vLine(stats.mode, "#dc2626", 3.5, [12, 4]);
 
-// MAD dotted light purple
-verticalLine(stats.q2-stats.mad,"#c084fc",3,[8,8]);
-verticalLine(stats.q2+stats.mad,"#c084fc",3,[8,8]);
+  // --- Labels on lines ---
+  drawLabel(stats.mean,       "Mean",   "#2563eb", 30);
+  drawLabel(stats.q2,         "Median", "#16a34a", 50);
+  drawLabel(stats.mode,       "Mode",   "#dc2626", 70);
+  drawLabel(stats.mean - stats.sd, "−σ", "#2563eb", 90);
+  drawLabel(stats.mean + stats.sd, "+σ", "#2563eb", 90);
+  drawLabel(stats.q1,         "Q1",     "#d97706", 110);
+  drawLabel(stats.q3,         "Q3",     "#d97706", 110);
 }
 
-function clearCanvas(){
-ctx.clearRect(0,0,canvas.width,canvas.height);
-values = new Array(canvas.width).fill(0);
-stats=null;
-let ids=["mean","median","mode","q1","q3","iqr","mad"];
-ids.forEach(id=>{ document.getElementById(id).innerHTML="–"; });
+function drawLabel(x, text, color, yPos) {
+  ctx.save();
+  ctx.font = "bold 13px Inter, sans-serif";
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+
+  const w = ctx.measureText(text).width + 10;
+  // Clamp label inside canvas
+  const lx = Math.min(Math.max(x, w / 2 + 4), canvas.width - w / 2 - 4);
+
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  ctx.beginPath();
+  ctx.roundRect(lx - w / 2, yPos - 10, w, 18, 4);
+  ctx.fill();
+
+  ctx.fillStyle = color;
+  ctx.fillText(text, lx, yPos + 4);
+  ctx.restore();
 }
 
-function weightedQuantile(target,totalArea){
-let cumulative=0;
-for(let x=0;x<values.length;x++){
-cumulative+=values[x];
-if(cumulative/totalArea>=target) return x;
-}
-return 0;
-}
-
-function computeMAD(median,totalArea){
-let devs=[];
-let total=0;
-for(let x=0;x<values.length;x++){
-let d=Math.abs(x-median);
-devs.push({d:d,w:values[x]});
-total+=values[x];
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  values = new Array(canvas.width).fill(0);
+  stats = null;
+  ["mean", "median", "mode", "q1", "q3", "iqr", "mad", "stddev"].forEach(id => {
+    document.getElementById(id).textContent = "–";
+  });
 }
 
-devs.sort((a,b)=>a.d-b.d);
-
-let cumulative=0;
-for(let i=0;i<devs.length;i++){
-cumulative+=devs[i].w;
-if(cumulative/total>=0.5) return devs[i].d;
-}
-return 0;
-}
-
-function analyze(){
-let totalArea=0;
-let weightedSum=0;
-
-for(let x=0;x<values.length;x++){
-totalArea+=values[x];
-weightedSum+=x*values[x];
+function weightedQuantile(target, totalArea) {
+  let cumulative = 0;
+  for (let x = 0; x < values.length; x++) {
+    cumulative += values[x];
+    if (cumulative / totalArea >= target) return x;
+  }
+  return 0;
 }
 
-if(totalArea===0) return;
-
-const mean=weightedSum/totalArea;
-
-let maxY=0;
-let modeX=0;
-for(let x=0;x<values.length;x++){
-if(values[x]>maxY){ maxY=values[x]; modeX=x; }
+function computeMAD(median, totalArea) {
+  const devs = [];
+  for (let x = 0; x < values.length; x++) {
+    if (values[x] > 0) devs.push({ d: Math.abs(x - median), w: values[x] });
+  }
+  devs.sort((a, b) => a.d - b.d);
+  let cumulative = 0;
+  for (const dev of devs) {
+    cumulative += dev.w;
+    if (cumulative / totalArea >= 0.5) return dev.d;
+  }
+  return 0;
 }
 
-const q1 = weightedQuantile(0.25,totalArea);
-const q2 = weightedQuantile(0.50,totalArea);
-const q3 = weightedQuantile(0.75,totalArea);
+function analyze() {
+  let totalArea = 0, weightedSum = 0, weightedSumSq = 0;
 
-const iqr=q3-q1;
-const mad=computeMAD(q2,totalArea);
+  for (let x = 0; x < values.length; x++) {
+    totalArea += values[x];
+    weightedSum += x * values[x];
+  }
 
-stats={mean,mode:modeX,q1,q2,q3,iqr,mad};
+  if (totalArea === 0) return;
 
-// legend values
+  const mean = weightedSum / totalArea;
 
-document.getElementById('mean').innerHTML=mean.toFixed(2);
-document.getElementById('median').innerHTML=q2;
-document.getElementById('mode').innerHTML=modeX;
-document.getElementById('q1').innerHTML=q1;
-document.getElementById('q3').innerHTML=q3;
-document.getElementById('iqr').innerHTML=iqr;
-document.getElementById('mad').innerHTML=mad.toFixed(2);
+  // Std dev
+  for (let x = 0; x < values.length; x++) {
+    weightedSumSq += values[x] * (x - mean) ** 2;
+  }
+  const sd = Math.sqrt(weightedSumSq / totalArea);
 
-redraw();
+  // Mode
+  let maxY = 0, modeX = 0;
+  for (let x = 0; x < values.length; x++) {
+    if (values[x] > maxY) { maxY = values[x]; modeX = x; }
+  }
+
+  const q1  = weightedQuantile(0.25, totalArea);
+  const q2  = weightedQuantile(0.50, totalArea);
+  const q3  = weightedQuantile(0.75, totalArea);
+  const iqr = q3 - q1;
+  const mad = computeMAD(q2, totalArea);
+
+  stats = { mean, sd, mode: modeX, q1, q2, q3, iqr, mad };
+
+  document.getElementById('mean').textContent   = mean.toFixed(1);
+  document.getElementById('stddev').textContent = `±${sd.toFixed(1)}`;
+  document.getElementById('median').textContent = q2;
+  document.getElementById('mode').textContent   = modeX;
+  document.getElementById('q1').textContent     = q1;
+  document.getElementById('q3').textContent     = q3;
+  document.getElementById('iqr').textContent    = iqr;
+  document.getElementById('mad').textContent    = mad.toFixed(1);
+
+  redraw();
 }
-
 </script>
-
 </body>
 </html>
