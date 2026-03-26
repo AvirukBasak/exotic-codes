@@ -102,6 +102,34 @@ p {
   font-size: 16px;
   color: #64748b;
 }
+
+.legendItem { cursor: pointer; transition: opacity 0.15s, border-color 0.15s; }
+.legendItem.hidden { opacity: 0.38; background: #f1f5f9; }
+.legendItem.hidden .value { color: #94a3b8; }
+
+.toggle-cb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 17px;
+  height: 17px;
+  border: 2px solid #cbd5e1;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.12s, border-color 0.12s;
+}
+.toggle-cb:checked { background: #2563eb; border-color: #2563eb; }
+.toggle-cb:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px; top: 0px;
+  width: 6px; height: 10px;
+  border: 2px solid white;
+  border-top: none; border-left: none;
+  transform: rotate(45deg);
+}
 </style>
 </head>
 
@@ -124,8 +152,9 @@ p {
   <div class="legend">
 
     <!-- Mean -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-mean" onclick="toggleStat('mean')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-mean" checked onclick="event.stopPropagation();toggleStat('mean')">
         <div class="swatchWrap">
           <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#2563eb" stroke-width="3" stroke-dasharray="6,4"/></svg>
         </div>
@@ -135,8 +164,9 @@ p {
     </div>
 
     <!-- Std Dev -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-stddev" onclick="toggleStat('stddev')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-stddev" checked onclick="event.stopPropagation();toggleStat('stddev')">
         <div class="swatchWrap">
           <svg>
             <rect x="4" y="3" width="26" height="12" fill="#bfdbfe" opacity="0.6" rx="2"/>
@@ -150,8 +180,9 @@ p {
     </div>
 
     <!-- Median -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-median" onclick="toggleStat('median')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-median" checked onclick="event.stopPropagation();toggleStat('median')">
         <div class="swatchWrap">
           <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#16a34a" stroke-width="3.5"/></svg>
         </div>
@@ -161,8 +192,9 @@ p {
     </div>
 
     <!-- Mode -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-mode" onclick="toggleStat('mode')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-mode" checked onclick="event.stopPropagation();toggleStat('mode')">
         <div class="swatchWrap">
           <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#dc2626" stroke-width="3.5" stroke-dasharray="10,3"/></svg>
         </div>
@@ -172,8 +204,9 @@ p {
     </div>
 
     <!-- IQR -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-iqr" onclick="toggleStat('iqr')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-iqr" checked onclick="event.stopPropagation();toggleStat('iqr')">
         <div class="swatchWrap">
           <svg>
             <rect x="4" y="3" width="26" height="12" fill="#fde68a" opacity="0.7" rx="2"/>
@@ -187,8 +220,9 @@ p {
     </div>
 
     <!-- Q1 -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-q1" onclick="toggleStat('q1')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-q1" checked onclick="event.stopPropagation();toggleStat('q1')">
         <div class="swatchWrap">
           <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#d97706" stroke-width="2.5" stroke-dasharray="4,4"/></svg>
         </div>
@@ -198,8 +232,9 @@ p {
     </div>
 
     <!-- Q3 -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-q3" onclick="toggleStat('q3')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-q3" checked onclick="event.stopPropagation();toggleStat('q3')">
         <div class="swatchWrap">
           <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#d97706" stroke-width="2.5" stroke-dasharray="4,4"/></svg>
         </div>
@@ -209,8 +244,9 @@ p {
     </div>
 
     <!-- MAD -->
-    <div class="legendItem">
+    <div class="legendItem" id="li-mad" onclick="toggleStat('mad')">
       <div class="leftLegend">
+        <input type="checkbox" class="toggle-cb" id="cb-mad" checked onclick="event.stopPropagation();toggleStat('mad')">
         <div class="swatchWrap">
           <svg><line x1="0" y1="9" x2="34" y2="9" stroke="#9333ea" stroke-width="2.5" stroke-dasharray="2,5"/></svg>
         </div>
@@ -229,6 +265,21 @@ const ctx = canvas.getContext('2d');
 let drawing = false;
 let values = new Array(canvas.width).fill(0);
 let stats = null;
+
+// Visibility state — all on by default
+const visible = {
+  mean: true, stddev: true, median: true, mode: true,
+  iqr: true, q1: true, q3: true, mad: true
+};
+
+function toggleStat(key) {
+  visible[key] = !visible[key];
+  const cb = document.getElementById('cb-' + key);
+  const li = document.getElementById('li-' + key);
+  cb.checked = visible[key];
+  li.classList.toggle('hidden', !visible[key]);
+  redraw();
+}
 
 canvas.onmousedown = e => { drawing = true; draw(e); };
 canvas.onmouseup = () => drawing = false;
@@ -293,36 +344,44 @@ function shadedRegion(x1, x2, color, alpha) {
 
 function drawStats() {
   // --- IQR band: warm amber ---
-  shadedRegion(stats.q1, stats.q3, "#fde68a", 0.35);
-  vLine(stats.q1, "#d97706", 2, [6, 5]);
-  vLine(stats.q3, "#d97706", 2, [6, 5]);
+  if (visible.iqr) {
+    shadedRegion(stats.q1, stats.q3, "#fde68a", 0.35);
+  }
+  if (visible.q1) vLine(stats.q1, "#d97706", 2, [6, 5]);
+  if (visible.q3) vLine(stats.q3, "#d97706", 2, [6, 5]);
 
   // --- ±1 SD band: cool blue ---
-  shadedRegion(stats.mean - stats.sd, stats.mean + stats.sd, "#bfdbfe", 0.30);
-  vLine(stats.mean - stats.sd, "#3b82f6", 2, [5, 4]);
-  vLine(stats.mean + stats.sd, "#3b82f6", 2, [5, 4]);
+  if (visible.stddev) {
+    shadedRegion(stats.mean - stats.sd, stats.mean + stats.sd, "#bfdbfe", 0.30);
+    vLine(stats.mean - stats.sd, "#3b82f6", 2, [5, 4]);
+    vLine(stats.mean + stats.sd, "#3b82f6", 2, [5, 4]);
+  }
 
   // --- MAD lines: purple dotted ---
-  vLine(stats.q2 - stats.mad, "#9333ea", 2, [3, 6]);
-  vLine(stats.q2 + stats.mad, "#9333ea", 2, [3, 6]);
+  if (visible.mad) {
+    vLine(stats.q2 - stats.mad, "#9333ea", 2, [3, 6]);
+    vLine(stats.q2 + stats.mad, "#9333ea", 2, [3, 6]);
+  }
 
   // --- Median: solid green (bold) ---
-  vLine(stats.q2, "#16a34a", 4);
+  if (visible.median) vLine(stats.q2, "#16a34a", 4);
 
   // --- Mean: dashed blue (bold) ---
-  vLine(stats.mean, "#2563eb", 3.5, [8, 5]);
+  if (visible.mean) vLine(stats.mean, "#2563eb", 3.5, [8, 5]);
 
   // --- Mode: dashed red (bold) ---
-  vLine(stats.mode, "#dc2626", 3.5, [12, 4]);
+  if (visible.mode) vLine(stats.mode, "#dc2626", 3.5, [12, 4]);
 
   // --- Labels on lines ---
-  drawLabel(stats.mean,       "Mean",   "#2563eb", 30);
-  drawLabel(stats.q2,         "Median", "#16a34a", 50);
-  drawLabel(stats.mode,       "Mode",   "#dc2626", 70);
-  drawLabel(stats.mean - stats.sd, "−σ", "#2563eb", 90);
-  drawLabel(stats.mean + stats.sd, "+σ", "#2563eb", 90);
-  drawLabel(stats.q1,         "Q1",     "#d97706", 110);
-  drawLabel(stats.q3,         "Q3",     "#d97706", 110);
+  if (visible.mean)   drawLabel(stats.mean,            "Mean",   "#2563eb", 30);
+  if (visible.median) drawLabel(stats.q2,              "Median", "#16a34a", 50);
+  if (visible.mode)   drawLabel(stats.mode,            "Mode",   "#dc2626", 70);
+  if (visible.stddev) drawLabel(stats.mean - stats.sd, "−σ",     "#3b82f6", 90);
+  if (visible.stddev) drawLabel(stats.mean + stats.sd, "+σ",     "#3b82f6", 90);
+  if (visible.q1)     drawLabel(stats.q1,              "Q1",     "#d97706", 110);
+  if (visible.q3)     drawLabel(stats.q3,              "Q3",     "#d97706", 110);
+  if (visible.mad)    drawLabel(stats.q2 - stats.mad,  "−MAD",   "#9333ea", 130);
+  if (visible.mad)    drawLabel(stats.q2 + stats.mad,  "+MAD",   "#9333ea", 130);
 }
 
 function drawLabel(x, text, color, yPos) {
