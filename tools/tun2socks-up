@@ -102,9 +102,13 @@ echo "==> configuring routes"
 # tun2socks's own packets to the proxy loop back into the tunnel
 ip route replace "$ANDROID_IP/32" dev "$HOTSPOT_IFACE"
 
-# route all internet traffic via tun0
-# metric 1 beats any existing default route
-ip route replace default via "$TUN_ADDR" dev "$TUN_DEV" metric 1
+# flush ALL existing default routes — DHCP from NetShare's own hotspot
+# will have injected one at metric 0 which would beat our tun0 route
+echo "==> flushing existing default routes"
+while ip route del default 2>/dev/null; do :; done
+
+# now add tun0 as the sole default route
+ip route add default via "$TUN_ADDR" dev "$TUN_DEV" metric 1
 
 # ── DNS ──────────────────────────────────────────────────────────
 # point systemd-resolved at a public DNS over the tun interface
