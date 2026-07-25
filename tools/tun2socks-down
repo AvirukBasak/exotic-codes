@@ -1,0 +1,85 @@
+#!/bin/bash
+# tun2socks-down
+# Tear down tun2socks tunnel and restore original network state
+
+set -euo pipefail
+
+PIDFILE="/var/run/tun2socks.pid"
+ENVFILE="/var/run/tun2socks.env"
+
+# ── Sanity checks ────────────────────────────────────────────────
+if [[ $EUID -ne 0 ]]; then
+    echo "error: run with sudo" >&2
+    exit 1
+fi
+
+if [[ ! -f "$PIDFILE" ]]; then
+    echo "error: $PIDFILE not found — tunnel does not appear to be up" >&2
+    exit 1
+fi
+
+# ── Load saved state ─────────────────────────────────────────────
+if [[ -f "$ENVFILE" ]]; then
+    source "$ENVFILE"
+else
+    echo "warn: $ENVFILE not found — will attempt best-effort teardown"
+    ORIG_GW=""
+    ORIG_IFACE=""
+    HOTSPOT_IFACE=""
+    TUN_DEV="tun0"
+    TUN_ADDR="198.18.0.1"
+    ANDROID_IP="192.168.49.1"
+fi
+
+T2S_PID=$(cat "$PIDFILE")
+echo "==> stopping tun2socks (pid $T2S_PID)"
+
+# ── Kill tun2socks ───────────────────────────────────────────────
+if kill -0 "$T2S_PID" 2>/dev/null; then
+    kill "$T2S_PID"
+    # wait up to 3s for clean exit
+    for i in {1..6}; do
+        kill -0 "$T2S_PID" 2>/dev/null || break
+        sleep 0.5
+    done
+    # force if still alive
+    kill -0 "$T2S_PID" 2>/dev/null && kill -9 "$T2S_PID" || true
+    echo "==> tun2socks stopped"
+else
+    echo "warn: process $T2S_PID was not running"
+fi
+
+# ── Remove tunnel routes ─────────────────────────────────────────
+echo "==> removing tunnel routes"
+
+ip route del default dev "$TUN_DEV"          2>/dev/null || true
+ip route del "$ANDROID_IP/32"                2>/dev/null || true
+
+# ── Remove TUN interface ─────────────────────────────────────────
+echo "==> removing $TUN_DEV"
+ip link set dev "$TUN_DEV" down              2>/dev/null || true
+ip link del "$TUN_DEV"                       2>/dev/null || true
+
+# ── Restore original default route ──────────────────────────────
+if [[ -n "$ORIG_GW" && -n "$ORIG_IFACE" ]]; then
+    echo "==> restoring original default route: via $ORIG_GW dev $ORIG_IFACE"
+    ip route replace default via "$ORIG_GW" dev "$ORIG_IFACE"
+elif [[ -n "$ORIG_IFACE" ]]; then
+    echo "==> restoring original default route: dev $ORIG_IFACE (no gateway)"
+    ip route replace default dev "$ORIG_IFACE"
+else
+    echo "warn: no original default route to restore"
+    echo "      you may need to reconnect your network manually"
+fi
+
+# ── Restore DNS ──────────────────────────────────────────────────
+if command -v resolvectl &>/dev/null; then
+    echo "==> reverting DNS"
+    resolvectl revert "$TUN_DEV" 2>/dev/null || true
+fi
+
+# ── Cleanup state files ──────────────────────────────────────────
+rm -f "$PIDFILE" "$ENVFILE"
+
+echo ""
+echo "✓ tunnel down — network restored"

@@ -1,0 +1,125 @@
+#!/bin/bash
+# tun2socks-up
+# Bring up tun2socks tunnel through NetShare SOCKS5 proxy
+# Usage: sudo ./tun2socks-up [android-ip] [socks-port]
+#
+# Defaults match NetShare's typical values:
+#   Android hotspot IP : 192.168.49.1
+#   SOCKS5 port        : 8282
+
+set -euo pipefail
+
+# ── Configuration ────────────────────────────────────────────────
+ANDROID_IP="${1:-192.168.49.1}"
+SOCKS_PORT="${2:-8282}"
+
+TUN_DEV="tun0"
+TUN_ADDR="198.18.0.1"   # fake gateway address on the tun interface
+TUN_NET="198.18.0.0/15" # reserved range (RFC 2544), safe to use for this
+
+PIDFILE="/var/run/tun2socks.pid"
+LOGFILE="/var/log/tun2socks.log"
+
+# ── Sanity checks ────────────────────────────────────────────────
+if [[ $EUID -ne 0 ]]; then
+    echo "error: run with sudo" >&2
+    exit 1
+fi
+
+if ! command -v tun2socks &>/dev/null; then
+    echo "error: tun2socks not found in PATH" >&2
+    echo "       download from https://github.com/xjasonlyu/tun2socks/releases" >&2
+    exit 1
+fi
+
+if [[ -f "$PIDFILE" ]]; then
+    echo "error: $PIDFILE exists — tunnel may already be up (run tun2socks-down first)" >&2
+    exit 1
+fi
+
+# detect which interface the android hotspot is on
+HOTSPOT_IFACE=$(ip route get "$ANDROID_IP" 2>/dev/null | awk '/dev/{print $3; exit}')
+if [[ -z "$HOTSPOT_IFACE" ]]; then
+    echo "error: cannot reach $ANDROID_IP — are you connected to the NetShare hotspot?" >&2
+    exit 1
+fi
+
+echo "==> hotspot interface : $HOTSPOT_IFACE"
+echo "==> android proxy     : socks5://$ANDROID_IP:$SOCKS_PORT"
+echo "==> tun device        : $TUN_DEV ($TUN_ADDR)"
+
+# ── Save original default route for teardown ─────────────────────
+ORIG_GW=$(ip route show default | awk '/default/{print $3; exit}')
+ORIG_IFACE=$(ip route show default | awk '/default/{print $5; exit}')
+
+if [[ -z "$ORIG_GW" && -z "$ORIG_IFACE" ]]; then
+    # no existing default route is fine — we're the only internet path
+    echo "==> no prior default route found"
+else
+    echo "==> saving original default route: via $ORIG_GW dev $ORIG_IFACE"
+fi
+
+# persist original route info for the down script
+echo "ORIG_GW=$ORIG_GW"           > /var/run/tun2socks.env
+echo "ORIG_IFACE=$ORIG_IFACE"    >> /var/run/tun2socks.env
+echo "HOTSPOT_IFACE=$HOTSPOT_IFACE" >> /var/run/tun2socks.env
+echo "ANDROID_IP=$ANDROID_IP"    >> /var/run/tun2socks.env
+echo "TUN_DEV=$TUN_DEV"          >> /var/run/tun2socks.env
+echo "TUN_ADDR=$TUN_ADDR"        >> /var/run/tun2socks.env
+
+# ── Create TUN interface ─────────────────────────────────────────
+echo "==> creating $TUN_DEV"
+ip tuntap add dev "$TUN_DEV" mode tun
+ip addr add "$TUN_ADDR/15" dev "$TUN_DEV"
+ip link set dev "$TUN_DEV" up
+
+# ── Start tun2socks ──────────────────────────────────────────────
+echo "==> starting tun2socks"
+tun2socks \
+    --device "$TUN_DEV" \
+    --proxy "socks5://$ANDROID_IP:$SOCKS_PORT" \
+    --loglevel warning \
+    >> "$LOGFILE" 2>&1 &
+
+T2S_PID=$!
+echo $T2S_PID > "$PIDFILE"
+echo "==> tun2socks pid: $T2S_PID"
+
+# give it a moment to initialise
+sleep 1
+
+if ! kill -0 "$T2S_PID" 2>/dev/null; then
+    echo "error: tun2socks exited immediately — check $LOGFILE" >&2
+    rm -f "$PIDFILE" /var/run/tun2socks.env
+    ip link del "$TUN_DEV" 2>/dev/null || true
+    exit 1
+fi
+
+# ── Routing ──────────────────────────────────────────────────────
+echo "==> configuring routes"
+
+# critical: keep the hotspot reachable directly — without this
+# tun2socks's own packets to the proxy loop back into the tunnel
+ip route replace "$ANDROID_IP/32" dev "$HOTSPOT_IFACE"
+
+# route all internet traffic via tun0
+# metric 1 beats any existing default route
+ip route replace default via "$TUN_ADDR" dev "$TUN_DEV" metric 1
+
+# ── DNS ──────────────────────────────────────────────────────────
+# point systemd-resolved at a public DNS over the tun interface
+# so DNS queries also go through the proxy tunnel
+if command -v resolvectl &>/dev/null; then
+    echo "==> configuring DNS via resolvectl"
+    resolvectl dns "$TUN_DEV" 1.1.1.1 8.8.8.8
+    resolvectl domain "$TUN_DEV" "~."  # use for all domains
+else
+    echo "warn: resolvectl not found — you may need to set DNS manually"
+fi
+
+# ── Done ─────────────────────────────────────────────────────────
+echo ""
+echo "✓ tunnel up — all traffic routed through NetShare on Android"
+echo "  verify with: curl https://ifconfig.me"
+echo "  logs at    : $LOGFILE"
+echo "  bring down : sudo tun2socks-down"
