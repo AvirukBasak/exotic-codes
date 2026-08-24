@@ -1,0 +1,30 @@
+#!/bin/env python3
+
+import json
+
+def extract_code_and_comments(ipynb_path, output_py_path):
+    with open(ipynb_path, 'r', encoding='utf-8') as f:
+        notebook = json.load(f)
+        
+    with open(output_py_path, 'w', encoding='utf-8') as f:
+        for cell in notebook.get('cells', []):
+            cell_type = cell.get('cell_type')
+            source = cell.get('source', [])
+            
+            # Ensure source is a list of strings
+            if isinstance(source, str):
+                source = source.splitlines(keepends=True)
+                
+            if cell_type == 'code':
+                # Write code directly
+                f.write(''.join(source))
+                f.write('\n\n') # Add spacing between cells
+                
+            elif cell_type == 'markdown':
+                # Convert markdown text lines to comments
+                f.write('# ' + '# '.join(source))
+                f.write('\n\n')
+
+# Example usage:
+extract_code_and_comments('dump.ipynb', 'dump.py')
+
