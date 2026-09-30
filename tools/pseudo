@@ -1,0 +1,52 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# psudo - pseudo sudo for Termux with Magisk root
+# Place in ~/.local/bin/psudo and chmod +x
+
+TERMUX_BIN="/data/data/com.termux/files/usr/bin"
+TERMUX_PREFIX="/data/data/com.termux/files/usr"
+TERMUX_LIB="/data/data/com.termux/files/usr/lib"
+
+# Handle no arguments
+if [ $# -eq 0 ]; then
+    echo "usage: psudo <command> [args...]"
+    echo "       psudo -s         (open root shell)"
+    echo "       psudo -e VAR=val (set env var)"
+    exit 1
+fi
+
+# Open an interactive root shell
+if [ "$1" = "-s" ]; then
+    su -c "export PATH=\"$TERMUX_BIN:\$PATH\"; export PREFIX=\"$TERMUX_PREFIX\"; exec bash"
+    exit $?
+fi
+
+# Parse optional -e VAR=val env overrides before the command
+EXTRA_ENV=""
+while [ "$1" = "-e" ]; do
+    shift
+    EXTRA_ENV="export $1; $EXTRA_ENV"
+    shift
+done
+
+# Resolve the command to a full path if it lives in TERMUX_BIN
+CMD="$1"
+shift
+
+if [ -x "$TERMUX_BIN/$CMD" ]; then
+    FULL_CMD="$TERMUX_BIN/$CMD"
+elif command -v "$CMD" > /dev/null 2>&1; then
+    FULL_CMD="$(command -v "$CMD")"
+else
+    echo "psudo: command not found: $CMD" >&2
+    exit 127
+fi
+
+# Build the args string, quoting each argument
+ARGS=""
+for arg in "$@"; do
+    ARGS="$ARGS '$(echo "$arg" | sed "s/'/'\\\\''/g")'"
+done
+
+# Run via su with Termux PATH injected
+su -c "export PATH=\"$TERMUX_BIN:\$PATH\"; export LD_LIBRARY_PATH=\"$TERMUX_LIB:\$LD_LIBRARY_PATH\"; export PREFIX=\"$TERMUX_PREFIX\"; \"$FULL_CMD\"$ARGS"
+exit $?
